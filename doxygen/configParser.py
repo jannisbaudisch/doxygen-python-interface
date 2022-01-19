@@ -1,6 +1,8 @@
 import logging
 import os
 import re
+from typing import List, AnyStr
+
 from doxygen.exceptions import ParseException
 
 
@@ -26,36 +28,38 @@ class ConfigParser:
             logging.error("Impossible to access to {}".format(doxyfile))
             raise FileNotFoundError(doxyfile)
 
-        configuration = dict()
-
         with open(doxyfile, 'r') as file:
+            lines = file.readlines()
+            return self.load_configuration_lines(lines)
 
-            in_multiline_option = False
-            current_multiline_option_name = None
+    def load_configuration_lines(self, lines: List[AnyStr]) -> dict:
+        configuration = dict()
+        in_multiline_option = False
+        current_multiline_option_name = None
 
-            for line in file.readlines():
-                line = line.strip()
-                if len(line) == 0:
-                    continue
+        for line in lines:
+            line = line.strip()
+            if len(line) == 0:
+                continue
 
-                if self.__is_comment_line(line):
-                    continue
+            if self.__is_comment_line(line):
+                continue
 
-                if in_multiline_option:
-                    if not line.endswith('\\'):
-                        in_multiline_option = False
-                    option_value = line.rstrip('\\').strip()
-                    unquoted_option_value = self.__remove_double_quote_if_required(option_value)
-                    configuration[current_multiline_option_name].append(unquoted_option_value)
+            if in_multiline_option:
+                if not line.endswith('\\'):
+                    in_multiline_option = False
+                option_value = line.rstrip('\\').strip()
+                unquoted_option_value = self.__remove_double_quote_if_required(option_value)
+                configuration[current_multiline_option_name].append(unquoted_option_value)
 
-                elif self.__is_first_line_of_multiline_option(line):
-                    current_multiline_option_name, option_value = self.__extract_multiline_option_name_and_first_value(line)
-                    configuration[current_multiline_option_name] = [option_value]
-                    in_multiline_option = True
+            elif self.__is_first_line_of_multiline_option(line):
+                current_multiline_option_name, option_value = self.__extract_multiline_option_name_and_first_value(line)
+                configuration[current_multiline_option_name] = [option_value]
+                in_multiline_option = True
 
-                elif self.__is_single_line_option(line):
-                    option_name, option_value = self.__extract_single_line_option_name_and_value(line)
-                    configuration[option_name] = option_value
+            elif self.__is_single_line_option(line):
+                option_name, option_value = self.__extract_single_line_option_name_and_value(line)
+                configuration[option_name] = option_value
 
         return configuration
 
