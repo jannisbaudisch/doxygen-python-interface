@@ -14,8 +14,7 @@ class ConfigParser:
     __line_parser: ConfigLineParser
 
     def __init__(self):
-        self.__single_line_option_regex = re.compile("^\s*(\w+)\s*=\s*([^\\\\]*)\s*$")
-        self.__first_line_of_multiline_option_regex = re.compile("^\s*(\w+)\s*=\s*(|.*[^\s])\s*\\\\$")
+        self.__line_regex = re.compile("^\s*(\w+)\s*=(.*)$")
         self.__line_parser = ConfigLineParser()
 
     def load_configuration(self, doxyfile: str) -> dict:
@@ -54,17 +53,10 @@ class ConfigParser:
                 value_string = line.rstrip('\\')
                 option_values = self.__line_parser.parse_values_from_line(value_string)
                 configuration[current_multiline_option_name].extend(option_values)
-
-            elif self.__is_first_line_of_multiline_option(line):
-                current_multiline_option_name, value_string = self.__extract_multiline_option_name_and_first_value(line)
+            elif self.__is_line_with_option(line):
+                current_multiline_option_name, value_string, in_multiline_option = self.__extract_line_content(line)
                 option_values = self.__line_parser.parse_values_from_line(value_string)
                 configuration[current_multiline_option_name] = option_values
-                in_multiline_option = True
-
-            elif self.__is_single_line_option(line):
-                option_name, value_string = self.__extract_single_line_option_name_and_value(line)
-                option_values = self.__line_parser.parse_values_from_line(value_string)
-                configuration[option_name] = option_values
 
         configuration = self.__replace_lists_with_only_one_entry(configuration)
 
@@ -102,48 +94,26 @@ class ConfigParser:
         with open(doxyfile, 'w') as file:
             file.write("\n".join(lines))
 
-    def __extract_multiline_option_name_and_first_value(self, line) -> (str, str):
-        """
-        Extract the option name and the first value of multi line option
-
-        :param line: The line you want to parse
-        :return: the option name and the option first value
-        :raise ParseException: When process fail to extract data
-        """
-
-        matches = self.__first_line_of_multiline_option_regex.search(line)
+    def __extract_line_content(self, line) -> (str, List[str], bool):
+        matches = self.__line_regex.search(line)
         if matches is None or len(matches.groups()) != 2:
-            logging.error("Impossible to extract first value off multi line option from: {}" % line)
-            raise ParseException("Impossible to extract first value off multi line option from: {}" % line)
+            logging.error("Impossible to extract value line option from: {}" % line)
+            raise ParseException("Impossible to extract value line option from: {}" % line)
 
-        return matches.group(1), matches.group(2)
+        option_name, value_string = matches.groups()
 
-    def __extract_single_line_option_name_and_value(self, line) -> (str, str):
-        """
-        Extract the option name and the value of single line option
+        is_multiline_option = value_string.endswith('\\')
+        if is_multiline_option:
+            value_string = value_string[:-1]
 
-        :param line: The line you want to parse
-        :return: the option name and the option value
-        :raise ParseException: When process fail to extract data
-        """
+        return option_name, value_string, is_multiline_option
 
-        matches = self.__single_line_option_regex.search(line)
-
-        if matches is None or len(matches.groups()) != 2:
-            logging.error("Impossible to extract option name and value from: {}" % line)
-            raise ParseException("Impossible to extract option name and value from: {}" % line)
-
-        return matches.group(1), matches.group(2)
-
-    def __is_single_line_option(self, line: str) -> bool:
-        return self.__single_line_option_regex.match(line) is not None
+    def __is_line_with_option(self, line: str) -> bool:
+        return self.__line_regex.match(line) is not None
 
     @staticmethod
     def __is_comment_line(line: str) -> bool:
         return line.startswith("#")
-
-    def __is_first_line_of_multiline_option(self, line) -> bool:
-        return self.__first_line_of_multiline_option_regex.match(line) is not None
 
     @staticmethod
     def __add_double_quote_if_required(option_value: str) -> str:
@@ -153,6 +123,8 @@ class ConfigParser:
         :param option_value: The value you want to work on
         :return: The option value proper
         """
+        option_value = option_value.replace('"', '\\"')
+
         if " " in option_value:
             option_value_formatted = '"{}"'.format(option_value)
             logging.debug("Add quote from {} to {}".format(option_value, option_value_formatted))

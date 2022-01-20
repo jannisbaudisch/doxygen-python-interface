@@ -120,14 +120,22 @@ class DoxygenConfigParserTest(unittest.TestCase):
 
     def test_quote_escaping(self):
         configuration = self.get_configuration_from_lines([
-            'OPTION = ""escaped quote \\""',
+            'OPTION = "escaped quote \\""',
         ])
 
         self.assertEqual('escaped quote "', configuration['OPTION'])
 
+    def test_escaped_quote_in_multiline_option(self):
+        configuration = self.get_configuration_from_lines([
+            'OPTION = "first escaped quote \\"" \\',
+            '         "second escaped quote \\""',
+        ])
+
+        self.assertEqual(['first escaped quote "', 'second escaped quote "'], configuration['OPTION'])
+
     def test_crazy_escaped_quote_outside_of_quotes(self):
         configuration = self.get_configuration_from_lines([
-            'OPTION = "escaped quote outside of value \\"remaining line',
+            'OPTION = escaped quote outside of value \\"remaining line',
         ])
 
         self.assertEqual(['escaped', 'quote', 'outside', 'of', 'value', '\\', 'remaining line'],
