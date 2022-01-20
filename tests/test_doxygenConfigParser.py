@@ -62,7 +62,7 @@ class DoxygenConfigParserTest(unittest.TestCase):
             '                   line3',
         ])
 
-        self.assertEqual(['', '', 'line3'], configuration['MULTILINE_OPTION'])
+        self.assertEqual('line3', configuration['MULTILINE_OPTION'])
 
     def test_multiline_option(self):
         configuration = self.get_configuration_from_lines([
@@ -95,6 +95,43 @@ class DoxygenConfigParserTest(unittest.TestCase):
         other_configuration = parser.load_configuration(self.doxyfile_clone)
         self.assertEqual(configuration, other_configuration)
         return configuration
+
+    def test_multiple_values_in_one_line(self):
+        configuration = self.get_configuration_from_lines([
+            'OPTION = value1 value2 value3'
+        ])
+
+        self.assertEqual(['value1', 'value2', 'value3'], configuration['OPTION'])
+
+    def test_multiple_values_in_one_line_with_quotes(self):
+        configuration = self.get_configuration_from_lines([
+            'OPTION = "value1" "value2" "value3"'
+        ])
+
+        self.assertEqual(['value1', 'value2', 'value3'], configuration['OPTION'])
+
+    def test_multiple_values_in_multiple_lines(self):
+        configuration = self.get_configuration_from_lines([
+            'OPTION = "value 1" value2 \\',
+            '         "value 3" value4',
+        ])
+
+        self.assertEqual(['value 1', 'value2', 'value 3', 'value4'], configuration['OPTION'])
+
+    def test_quote_escaping(self):
+        configuration = self.get_configuration_from_lines([
+            'OPTION = ""escaped quote \\""',
+        ])
+
+        self.assertEqual('escaped quote "', configuration['OPTION'])
+
+    def test_crazy_escaped_quote_outside_of_quotes(self):
+        configuration = self.get_configuration_from_lines([
+            'OPTION = "escaped quote outside of value \\"remaining line',
+        ])
+
+        self.assertEqual(['escaped', 'quote', 'outside', 'of', 'value', '\\', 'remaining line'],
+                         configuration['OPTION'])
 
 
 if __name__ == '__main__':

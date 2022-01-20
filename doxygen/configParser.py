@@ -3,6 +3,7 @@ import os
 import re
 from typing import List, AnyStr
 
+from doxygen._configLineParser import ConfigLineParser
 from doxygen.exceptions import ParseException
 
 
@@ -10,10 +11,12 @@ class ConfigParser:
     """
     This class should be used to parse and store a doxygen configuration file
     """
+    __line_parser: ConfigLineParser
 
     def __init__(self):
         self.__single_line_option_regex = re.compile("^\s*(\w+)\s*=\s*([^\\\\]*)\s*$")
         self.__first_line_of_multiline_option_regex = re.compile("^\s*(\w+)\s*=\s*(|.*[^\s])\s*\\\\$")
+        self.__line_parser = ConfigLineParser()
 
     def load_configuration(self, doxyfile: str) -> dict:
         """
@@ -48,18 +51,32 @@ class ConfigParser:
             if in_multiline_option:
                 if not line.endswith('\\'):
                     in_multiline_option = False
-                option_value = line.rstrip('\\').strip()
-                unquoted_option_value = self.__remove_double_quote_if_required(option_value)
-                configuration[current_multiline_option_name].append(unquoted_option_value)
+                value_string = line.rstrip('\\')
+                option_values = self.__line_parser.parse_values_from_line(value_string)
+                configuration[current_multiline_option_name].extend(option_values)
 
             elif self.__is_first_line_of_multiline_option(line):
-                current_multiline_option_name, option_content = self.__extract_multiline_option_name_and_first_value(line)
-                configuration[current_multiline_option_name] = [option_value]
+                current_multiline_option_name, value_string = self.__extract_multiline_option_name_and_first_value(line)
+                option_values = self.__line_parser.parse_values_from_line(value_string)
+                configuration[current_multiline_option_name] = option_values
                 in_multiline_option = True
 
             elif self.__is_single_line_option(line):
-                option_name, option_value = self.__extract_single_line_option_name_and_value(line)
-                configuration[option_name] = option_value
+                option_name, value_string = self.__extract_single_line_option_name_and_value(line)
+                option_values = self.__line_parser.parse_values_from_line(value_string)
+                configuration[option_name] = option_values
+
+        configuration = self.__replace_lists_with_only_one_entry(configuration)
+
+        return configuration
+
+    @staticmethod
+    def __replace_lists_with_only_one_entry(configuration: dict):
+        for key, value in configuration.items():
+            if not value:
+                configuration[key] = ''
+            if len(value) == 1:
+                configuration[key] = value[0]
 
         return configuration
 
@@ -99,7 +116,7 @@ class ConfigParser:
             logging.error("Impossible to extract first value off multi line option from: {}" % line)
             raise ParseException("Impossible to extract first value off multi line option from: {}" % line)
 
-        return matches.group(1), self.__remove_double_quote_if_required(matches.group(2))
+        return matches.group(1), matches.group(2)
 
     def __extract_single_line_option_name_and_value(self, line) -> (str, str):
         """
@@ -116,32 +133,17 @@ class ConfigParser:
             logging.error("Impossible to extract option name and value from: {}" % line)
             raise ParseException("Impossible to extract option name and value from: {}" % line)
 
-        return matches.group(1), self.__remove_double_quote_if_required(matches.group(2))
+        return matches.group(1), matches.group(2)
 
     def __is_single_line_option(self, line: str) -> bool:
         return self.__single_line_option_regex.match(line) is not None
 
-    def __is_comment_line(self, line: str) -> bool:
+    @staticmethod
+    def __is_comment_line(line: str) -> bool:
         return line.startswith("#")
 
     def __is_first_line_of_multiline_option(self, line) -> bool:
         return self.__first_line_of_multiline_option_regex.match(line) is not None
-
-    @staticmethod
-    def __remove_double_quote_if_required(option_value: str) -> str:
-        """
-        Remove the double quote around string in option value.
-
-        Will be replaced when rewrite the configuration
-        :param option_value: The value you want to work on
-        :return: The option value proper
-        """
-        if option_value.startswith('"') and option_value.endswith('"'):
-            option_value_formatted = option_value[1:-1]
-            logging.debug("Remove quote from {} to {}".format(option_value, option_value_formatted))
-            return option_value_formatted
-
-        return option_value
 
     @staticmethod
     def __add_double_quote_if_required(option_value: str) -> str:
