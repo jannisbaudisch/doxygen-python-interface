@@ -13,7 +13,7 @@ class ConfigParser:
 
     def __init__(self):
         self.__single_line_option_regex = re.compile("^\s*(\w+)\s*=\s*([^\\\\]*)\s*$")
-        self.__first_line_of_multine_option_regex = re.compile("^\s*(\w+)\s*=\s*(|.*[^\s])\s*\\\\$")
+        self.__first_line_of_multiline_option_regex = re.compile("^\s*(\w+)\s*=\s*(|.*[^\s])\s*\\\\$")
 
     def load_configuration(self, doxyfile: str) -> dict:
         """
@@ -53,7 +53,7 @@ class ConfigParser:
                 configuration[current_multiline_option_name].append(unquoted_option_value)
 
             elif self.__is_first_line_of_multiline_option(line):
-                current_multiline_option_name, option_value = self.__extract_multiline_option_name_and_first_value(line)
+                current_multiline_option_name, option_content = self.__extract_multiline_option_name_and_first_value(line)
                 configuration[current_multiline_option_name] = [option_value]
                 in_multiline_option = True
 
@@ -94,7 +94,7 @@ class ConfigParser:
         :raise ParseException: When process fail to extract data
         """
 
-        matches = self.__first_line_of_multine_option_regex.search(line)
+        matches = self.__first_line_of_multiline_option_regex.search(line)
         if matches is None or len(matches.groups()) != 2:
             logging.error("Impossible to extract first value off multi line option from: {}" % line)
             raise ParseException("Impossible to extract first value off multi line option from: {}" % line)
@@ -125,7 +125,7 @@ class ConfigParser:
         return line.startswith("#")
 
     def __is_first_line_of_multiline_option(self, line) -> bool:
-        return self.__first_line_of_multine_option_regex.match(line) is not None
+        return self.__first_line_of_multiline_option_regex.match(line) is not None
 
     @staticmethod
     def __remove_double_quote_if_required(option_value: str) -> str:
