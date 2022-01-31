@@ -26,8 +26,8 @@ class ConfigParser:
         :raise FileNotFoundError: When doxyfile doesn't exist
         """
 
-        if not os.path.exists(doxyfile):
-            logging.error("Impossible to access to {}".format(doxyfile))
+        if not os.path.exists(doxyfile) or os.access(doxyfile, os.R_OK):
+            logging.error("Impossible to access {}".format(doxyfile))
             raise FileNotFoundError(doxyfile)
 
         with open(doxyfile, 'r') as file:
